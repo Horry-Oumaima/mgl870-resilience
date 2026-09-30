@@ -1,16 +1,9 @@
 {
   "name": "mgl870-resilience",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "image": "mcr.microsoft.com/devcontainers/java:21-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/java:1": { "version": "21" },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false },
     "ghcr.io/devcontainers/features/python:1": {}
   },
-  "hostRequirements": { "cpus": 4 },
-  "forwardPorts": [8080, 3000, 9090],
-  "customizations": {
-    "vscode": {
-      "extensions": ["vscjava.vscode-java-pack", "vmware.vscode-boot-dev-pack", "ms-python.python", "ms-toolsai.jupyter"]
-    }
-  }
+  "forwardPorts": [8080, 3000, 9090]
 }

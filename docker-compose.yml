@@ -43,3 +43,14 @@ services:
     volumes: ["./grafana/provisioning:/etc/grafana/provisioning:ro"]
     ports: ["3000:3000"]
     depends_on: [prometheus]
+
+  k6:
+    image: grafana/k6:0.52.0
+    profiles: ["load"]
+    user: "1000:1000"
+    volumes:
+      - ./k6:/scripts:ro
+      - ./results:/results
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 1G }

@@ -15,9 +15,9 @@ const catalogRate = Math.max(1, RATE - orderRate);
 export const options = {
   scenarios: {
     orders:  { executor: 'constant-arrival-rate', rate: orderRate,   timeUnit: '1s',
-               duration: DURATION, preAllocatedVUs: 50, maxVUs: 600, exec: 'order' },
+               duration: DURATION, preAllocatedVUs: 300, maxVUs: 600, exec: 'order' },
     catalog: { executor: 'constant-arrival-rate', rate: catalogRate, timeUnit: '1s',
-               duration: DURATION, preAllocatedVUs: 50, maxVUs: 600, exec: 'catalog' },
+               duration: DURATION, preAllocatedVUs: 300, maxVUs: 600, exec: 'catalog' },
   },
   summaryTrendStats: ['count', 'avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 };

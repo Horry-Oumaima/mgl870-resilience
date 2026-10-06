@@ -53,4 +53,4 @@ services:
       - ./results:/results
     deploy:
       resources:
-        limits: { cpus: "1.0", memory: 1G }
+        limits: { cpus: "1.0", memory: 2G }

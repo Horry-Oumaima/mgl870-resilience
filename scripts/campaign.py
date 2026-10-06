@@ -287,6 +287,17 @@ def main():
             print(f"{run['order']:>4}  {run['config']}  {run['scenario']:<4}  r{run['rep']}")
         return
 
+    # Prometheus et Grafana doivent tourner pour enregistrer les séries
+    sh(["docker", "compose", "up", "-d", "prometheus", "grafana"], timeout=300)
+    for _ in range(60):
+        try:
+            http_get(f"{PROM_URL}/-/ready")
+            break
+        except Exception:
+            time.sleep(1)
+    else:
+        raise SystemExit("Prometheus n'est pas prêt.")
+
     bilan = {}
     try:
         for run in plan:

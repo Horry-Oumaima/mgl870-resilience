@@ -95,3 +95,23 @@ Leçons : (1) Prometheus aveugle quand A est saturé, k6 = source principale ;
 - Mesure de 120 s après 15 s de préchauffage ; S6 = 60 s normal, 30 s de panne, 30 s de retour.
 - 5 répétitions, ordre aléatoire (graine 42). Total : 275 exécutions.
 - Analyse : succès = réponse 2xx en moins de 1 s ; requêtes non envoyées comptées comme échecs.
+
+### Tableau P3 (3 répétitions de 120 s par combinaison)
+
+| Charge | Exécution | Cmd OK % | Cmd p95 (ms) | Catalogue OK % | Catalogue p95 (ms) | Amplification | Threads A | Disjoncteur ouvert % | Perdues |
+|---|---|---|---|---|---|---|---|---|---|
+| 100 | C1_S3_r1 | 69.7 | 55 | 100.0 | 1 | 1.00 | 6 | 0 | 0 |
+| 100 | C1_S3_r2 | 70.4 | 54 | 100.0 | 1 | 1.00 | 6 | 0 | 0 |
+| 100 | C1_S3_r3 | 69.8 | 55 | 100.0 | 1 | 1.00 | 5 | 0 | 0 |
+| 100 | C1_S5b_r1 | 0.0 | 1290 | 100.0 | 289 | 1.00 | 50 | 0 | 0 |
+| 100 | C1_S5b_r2 | 0.0 | 1276 | 100.0 | 274 | 1.00 | 50 | 0 | 0 |
+| 100 | C1_S5b_r3 | 0.0 | 1279 | 100.0 | 292 | 1.00 | 50 | 0 | 0 |
+| 100 | C3_S3_r1 | 10.6 | 53 | 100.0 | 1 | 0.15 | 4 | 83 | 0 |
+| 100 | C3_S3_r2 | 18.2 | 53 | 100.0 | 1 | 0.26 | 5 | 72 | 0 |
+| 100 | C3_S3_r3 | 17.8 | 53 | 100.0 | 1 | 0.25 | 4 | 73 | 0 |
+| 100 | C3_S5b_r1 | 0.0 | 2 | 100.0 | 1 | 0.01 | 34 | 88 | 0 |
+| 100 | C3_S5b_r2 | 0.0 | 2 | 100.0 | 1 | 0.01 | 43 | 89 | 0 |
+| 100 | C3_S5b_r3 | 0.0 | 2 | 100.0 | 1 | 0.01 | 45 | 89 | 0 |
+| 200 | C2_S4_r1 | 64.8 | 6988 | 100.0 | 6188 | 2.20 | 50 | 0 | 1258 |
+| 200 | C2_S4_r2 | 66.1 | 6903 | 100.0 | 6151 | 2.18 | 50 | 0 | 1106 |
+| 200 | C2_S4_r3 | 65.1 | 6976 | 100.0 | 6182 | 2.21 | 50 | 0 | 1344 |

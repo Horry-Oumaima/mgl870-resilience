@@ -81,3 +81,17 @@ Leçons : (1) Prometheus aveugle quand A est saturé, k6 = source principale ;
 | 200 | C3_S4_r1 | 0.3 | 1 | 100.0 | 1 | 0.01 | 3 | 95 | 0 |
 | 200 | C4_S3_r1 | 10.0 | 53 | 100.0 | 1 | 0.14 | 17 | 85 | 0 |
 | 200 | C4_S4_r1 | 0.5 | 2 | 100.0 | 1 | 0.02 | 4 | 95 | 0 |
+
+## P3 : stabilité (120 s, 3 répétitions)
+- C1/S3 : 69,7 / 70,4 / 69,8 % ; C1/S5b : catalogue p95 289 / 274 / 292 ms ; C3/S5b : quasi identique.
+- C2/S4 à 200 req/s : 64,8 / 66,1 / 65,1 % ; catalogue p95 environ 6,2 s ; amplification 2,18-2,21.
+- C3/S3 plus variable (10,6 / 18,2 / 17,8 %), à cause des ouvertures aléatoires du disjoncteur ;
+  l'écart avec C1 (environ 70 %) reste très supérieur à la variation.
+- Certains effets s'aggravent avec la durée (C1/S5b : catalogue p95 169 ms à 60 s, environ 285 ms à 120 s).
+
+## Décisions pour la campagne principale
+- Charges : 100 req/s (modérée) et 200 req/s (élevée).
+- Scénarios : S0, S1, S2, S3, S4, S5b, S6 à 100 req/s ; S0, S3, S4, S5b à 200 req/s. S5a retiré.
+- Mesure de 120 s après 15 s de préchauffage ; S6 = 60 s normal, 30 s de panne, 30 s de retour.
+- 5 répétitions, ordre aléatoire (graine 42). Total : 275 exécutions.
+- Analyse : succès = réponse 2xx en moins de 1 s ; requêtes non envoyées comptées comme échecs.

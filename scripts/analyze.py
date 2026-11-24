@@ -5,7 +5,8 @@ Analyse de la campagne MGL870 (Timeout, Retry, Circuit Breaker).
 Lit les dossiers produits par l'orchestrateur (results/<campagne>/<exécution>/) et produit,
 dans le dossier analysis/ :
   - runs.csv              une ligne par exécution (toutes les métriques)
-  - aggregate.csv         moyenne et IC 95 % (bootstrap) par charge x scénario x configuration
+  - aggregate.csv         médiane et IC 95 % (bootstrap de la médiane) par charge x scénario x configuration ;
+                          la moyenne, le minimum et le maximum sont aussi fournis
   - comparisons.csv       tests de Mann-Whitney entre une configuration et celle dont elle dérive
                           (taille d'effet : delta de Cliff ; correction de Holm par scénario et par métrique)
   - recovery_timeline.csv taux de succès seconde par seconde autour de la fin de panne (S6)
@@ -17,6 +18,7 @@ Définitions (voir docs/pilote.md) :
   - succès = réponse HTTP 200 obtenue en moins de SUCCESS_MS (1 s) ;
   - dénominateur = requêtes prévues par k6 (débit x durée) : une requête non envoyée compte comme un échec ;
   - amplification = appels reçus par B / commandes envoyées ;
+  - débit = réponses reçues par seconde ; débit utile = réponses réussies en moins de 1 s par seconde ;
   - temps de récupération (S6) = délai entre la fin de la panne et la première seconde à partir de laquelle
     5 fenêtres consécutives d'une seconde ont au moins 99 % de commandes réussies.
 
@@ -68,6 +70,9 @@ TESTED_METRICS = ["order_success_pct", "order_p95_ms", "catalog_success_pct", "c
 METRIC_LABELS = {
     "order_success_pct": "Commandes réussies en moins de 1 s (%)",
     "order_success_any_pct": "Commandes réussies, sans limite de temps (%)",
+    "order_throughput_rps": "Débit des commandes : réponses reçues par seconde",
+    "order_goodput_rps": "Débit utile des commandes : réussies en moins de 1 s par seconde",
+    "catalog_throughput_rps": "Débit du catalogue : réponses reçues par seconde",
     "order_p50_ms": "Latence p50 des commandes (ms)",
     "order_p95_ms": "Latence p95 des commandes (ms)",
     "order_p99_ms": "Latence p99 des commandes (ms)",
@@ -192,6 +197,9 @@ def analyze_run(run_dir, meta, timelines):
         out[f"{ep}_success_any_pct"] = pct(((df["s"] == 200) & sel).sum() / planned)
         for q in (50, 95, 99):
             out[f"{ep}_p{q}_ms"] = float(np.percentile(d, q)) if len(d) else np.nan
+        # Débit : réponses reçues (statut HTTP > 0) et réponses réussies en moins de 1 s, par seconde
+        out[f"{ep}_throughput_rps"] = float(((df["s"] > 0) & sel).sum()) / duration
+        out[f"{ep}_goodput_rps"] = float((ok_fast & sel).sum()) / duration
     out["not_sent_pct"] = pct(1 - (out["order_sent"] + out["catalog_sent"])
                               / (out["order_planned"] + out["catalog_planned"]))
 
@@ -253,13 +261,15 @@ def analyze_run(run_dir, meta, timelines):
 # ---------------------------------------------------------------- statistiques
 
 def bootstrap_ci(values, n=BOOTSTRAP_SAMPLES):
+    """Médiane des répétitions et IC 95 % obtenu par bootstrap de la médiane (méthode des percentiles)."""
     v = np.asarray([x for x in values if not (isinstance(x, float) and math.isnan(x))], dtype=float)
     if len(v) == 0:
         return np.nan, np.nan, np.nan
+    med = float(np.median(v))
     if len(v) == 1 or np.all(v == v[0]):
-        return float(v.mean()), float(v.mean()), float(v.mean())
-    means = RNG.choice(v, size=(n, len(v)), replace=True).mean(axis=1)
-    return float(v.mean()), float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
+        return med, med, med
+    meds = np.median(RNG.choice(v, size=(n, len(v)), replace=True), axis=1)
+    return med, float(np.percentile(meds, 2.5)), float(np.percentile(meds, 97.5))
 
 
 def cliffs_delta(a, b):
@@ -291,8 +301,9 @@ def aggregate(runs):
     for (camp, rate, sc, cfg), g in runs.groupby(["campaign", "rate", "scenario", "config"]):
         row = {"campaign": camp, "rate": rate, "scenario": sc, "config": cfg, "n_reps": len(g)}
         for m in metrics:
-            mean, lo, hi = bootstrap_ci(g[m].tolist())
-            row[f"{m}_mean"], row[f"{m}_ci_low"], row[f"{m}_ci_high"] = mean, lo, hi
+            med, lo, hi = bootstrap_ci(g[m].tolist())
+            row[f"{m}_median"], row[f"{m}_ci_low"], row[f"{m}_ci_high"] = med, lo, hi
+            row[f"{m}_mean"] = g[m].mean()
             row[f"{m}_min"], row[f"{m}_max"] = g[m].min(), g[m].max()
         rows.append(row)
     return pd.DataFrame(rows)
@@ -313,9 +324,9 @@ def compare(runs):
                 if len(x) >= 2 and len(y) >= 2 and not (np.all(x == x[0]) and np.all(y == y[0]) and x[0] == y[0]):
                     p = float(mannwhitneyu(x, y, alternative="two-sided", method="auto").pvalue)
                 rows.append({"campaign": camp, "rate": rate, "scenario": sc, "comparison": f"{new} vs {base}",
-                             "metric": m, "mean_new": float(np.mean(x)) if len(x) else np.nan,
-                             "mean_base": float(np.mean(y)) if len(y) else np.nan,
-                             "difference": (float(np.mean(x) - np.mean(y)) if len(x) and len(y) else np.nan),
+                             "metric": m, "median_new": float(np.median(x)) if len(x) else np.nan,
+                             "median_base": float(np.median(y)) if len(y) else np.nan,
+                             "difference": (float(np.median(x) - np.median(y)) if len(x) and len(y) else np.nan),
                              "cliffs_delta": cliffs_delta(x, y), "p_value": p})
     out = pd.DataFrame(rows)
     if not out.empty:
@@ -343,7 +354,7 @@ def style_axes(ax):
 def grouped_bars(agg, rate, metric, path, ylabel, ylim=None, log=False):
     sub = agg[agg["rate"] == rate]
     scenarios = [s for s in SCENARIOS if s in set(sub["scenario"])]
-    if not scenarios or f"{metric}_mean" not in sub.columns:
+    if not scenarios or f"{metric}_median" not in sub.columns:
         return False
     fig, ax = plt.subplots(figsize=(11, 4.6), facecolor=SURFACE)
     style_axes(ax)
@@ -352,9 +363,9 @@ def grouped_bars(agg, rate, metric, path, ylabel, ylim=None, log=False):
         xs, means, errs = [], [], [[], []]
         for i, sc in enumerate(scenarios):
             r = sub[(sub["scenario"] == sc) & (sub["config"] == cfg)]
-            if r.empty or pd.isna(r[f"{metric}_mean"].iloc[0]):
+            if r.empty or pd.isna(r[f"{metric}_median"].iloc[0]):
                 continue
-            mean = r[f"{metric}_mean"].iloc[0]
+            mean = r[f"{metric}_median"].iloc[0]
             xs.append(i + (k - 2) * width)
             means.append(mean)
             errs[0].append(max(mean - r[f"{metric}_ci_low"].iloc[0], 0))
@@ -376,7 +387,7 @@ def grouped_bars(agg, rate, metric, path, ylabel, ylim=None, log=False):
         ax.set_yscale("log")
     if ylim:
         ax.set_ylim(*ylim)
-    ax.set_title(f"{ylabel} — charge {rate} req/s (moyenne de 5 répétitions, IC 95 %)",
+    ax.set_title(f"{ylabel} — charge {rate} req/s (médiane de 5 répétitions, IC 95 %)",
                  color=INK, fontsize=11, loc="left")
     ax.legend(ncol=5, fontsize=8.5, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12),
               labelcolor=INK)
@@ -397,7 +408,7 @@ def recovery_figure(timeline, rate, path):
         g = sub[(sub["config"] == cfg) & (sub["offset_s"] >= lo) & (sub["offset_s"] <= hi)]
         if g.empty:
             continue
-        m = g.groupby("offset_s")["success"].mean() * 100
+        m = g.groupby("offset_s")["success"].median() * 100
         ax.plot(m.index, m.values, color=COLORS[cfg], linewidth=2, label=CONFIG_LABELS[cfg])
     ax.axvline(0, color=INK_2, linewidth=1, linestyle="--")
     ax.text(0.5, 50, "fin de la panne", color=INK_2, fontsize=9)
@@ -405,7 +416,7 @@ def recovery_figure(timeline, rate, path):
     ax.set_ylim(-2, 102)
     ax.set_xlabel("Secondes par rapport à la fin de la panne", color=INK, fontsize=10)
     ax.set_ylabel("Commandes réussies en moins de 1 s (%)", color=INK, fontsize=10)
-    ax.set_title(f"S6 : panne de B puis retour — charge {rate} req/s (moyenne des répétitions)",
+    ax.set_title(f"S6 : panne de B puis retour — charge {rate} req/s (médiane des répétitions)",
                  color=INK, fontsize=11, loc="left")
     ax.legend(ncol=5, fontsize=8.5, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.14),
               labelcolor=INK)
@@ -418,9 +429,9 @@ def recovery_figure(timeline, rate, path):
 # ---------------------------------------------------------------- tableaux lisibles
 
 def fmt_ci(row, metric, digits=1, unit=""):
-    if f"{metric}_mean" not in row or pd.isna(row[f"{metric}_mean"]):
+    if f"{metric}_median" not in row or pd.isna(row[f"{metric}_median"]):
         return "-"
-    m, lo, hi = row[f"{metric}_mean"], row[f"{metric}_ci_low"], row[f"{metric}_ci_high"]
+    m, lo, hi = row[f"{metric}_median"], row[f"{metric}_ci_low"], row[f"{metric}_ci_high"]
     return f"{m:.{digits}f}{unit} [{lo:.{digits}f}–{hi:.{digits}f}]"
 
 
@@ -439,15 +450,16 @@ def matrix_table(agg, rate, metric, digits=1, unit=""):
 
 
 def write_decision_matrix(agg, path):
-    parts = ["# Matrice de décision (moyenne sur 5 répétitions [IC 95 % bootstrap])", "",
+    parts = ["# Matrice de décision (médiane des 5 répétitions [IC 95 % bootstrap])", "",
              f"Succès = réponse 200 en moins de {SUCCESS_MS} ms ; requêtes non envoyées comptées comme échecs.", ""]
     for rate in sorted(agg["rate"].unique()):
         parts += [f"## Charge {rate} req/s", ""]
-        for metric, digits, unit in (("order_success_pct", 1, " %"), ("order_p95_ms", 0, ""),
+        for metric, digits, unit in (("order_success_pct", 1, " %"), ("order_goodput_rps", 1, ""),
+                                     ("order_throughput_rps", 1, ""), ("order_p95_ms", 0, ""),
                                      ("catalog_success_pct", 1, " %"), ("catalog_p95_ms", 0, ""),
                                      ("amplification", 2, ""), ("cb_open_pct", 0, " %"),
                                      ("recovery_s", 1, " s")):
-            if f"{metric}_mean" in agg.columns:
+            if f"{metric}_median" in agg.columns:
                 table = matrix_table(agg, rate, metric, digits, unit)
                 if table.count("\n") > 1:
                     parts += [f"### {METRIC_LABELS[metric]}", "", table, ""]
@@ -456,7 +468,7 @@ def write_decision_matrix(agg, path):
 
 def get(agg, rate, sc, cfg, metric):
     r = agg[(agg["rate"] == rate) & (agg["scenario"] == sc) & (agg["config"] == cfg)]
-    return r.iloc[0] if not r.empty and f"{metric}_mean" in r.columns else None
+    return r.iloc[0] if not r.empty and f"{metric}_median" in r.columns else None
 
 
 def key_line(agg, rate, sc, cfg, metric, digits=1, unit=""):

@@ -115,3 +115,8 @@ Leçons : (1) Prometheus aveugle quand A est saturé, k6 = source principale ;
 | 200 | C2_S4_r1 | 64.8 | 6988 | 100.0 | 6188 | 2.20 | 50 | 0 | 1258 |
 | 200 | C2_S4_r2 | 66.1 | 6903 | 100.0 | 6151 | 2.18 | 50 | 0 | 1106 |
 | 200 | C2_S4_r3 | 65.1 | 6976 | 100.0 | 6182 | 2.21 | 50 | 0 | 1344 |
+
+## Vérification sur la machine de la campagne (PC Windows + WSL 2 : 12 cœurs, 7,7 Go pour WSL)
+- C0/S0 à 200 req/s : p95 54 ms, 9 threads B (Codespace : 55 ms, 9) ; à 300 req/s : p95 76 ms, 10 threads B (Codespace : 101 ms, 10).
+- Comportement identique à 200 req/s : réglages du pilote conservés.
+- Port hôte du service A : 18080 (8080 occupé par Oracle) ; sans effet sur les mesures (k6 utilise le réseau Docker interne).

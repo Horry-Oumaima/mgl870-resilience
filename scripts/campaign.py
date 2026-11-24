@@ -26,7 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-A_URL = "http://localhost:8080"
+A_URL = "http://localhost:18080"
 B_URL = "http://localhost:8081"
 TOXI_URL = "http://localhost:8474"
 PROM_URL = "http://localhost:9090"

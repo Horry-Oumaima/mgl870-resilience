@@ -21,7 +21,7 @@ services:
     command:
       - "--payment.base-url=http://toxiproxy:8666"
       - "--resilience.config=${RESILIENCE_CONFIG:-C0}"
-    ports: ["8080:8080"]
+    ports: ["18080:8080"]
     depends_on: [toxiproxy]
     deploy:
       resources:
